@@ -1,0 +1,151 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Seeds database with initial data
+/// Run with: npx prisma db seed
+
+// Client/Tenant Organization
+model Client {
+  id            String   @id @default(cuid())
+  name          String
+  email         String
+  phone         String?
+  city          String?
+  status        String   @default("ACTIVE") // ACTIVE, SUSPENDED
+  accessCode    String   @unique // Unique code generated for this client
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users        User[]
+  projects     Project[]
+  reservations ReservationRequest[]
+  domains      Domain[]
+
+  @@index([status])
+}
+
+// User (Super Admin or Client Owner/Agent)
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("AGENT") // SUPER_ADMIN, OWNER, AGENT
+  clientId  String?
+  status    String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([role])
+  @@index([status])
+}
+
+// Real Estate Project
+model Project {
+  id          String   @id @default(cuid())
+  clientId    String
+  name        String
+  slug        String
+  description String?
+  location    String
+  coverImage  String?
+  floorsCount Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  floors       Floor[]
+  apartments   Apartment[]
+  reservations ReservationRequest[]
+
+  @@unique([clientId, slug])
+  @@index([clientId])
+}
+
+// Floor in a Project
+model Floor {
+  id          String   @id @default(cuid())
+  projectId   String
+  floorNumber Int
+  label       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  apartments  Apartment[]
+
+  @@index([projectId])
+}
+
+// Apartment in a Floor
+model Apartment {
+  id          String   @id @default(cuid())
+  projectId   String
+  floorId     String
+  number      String
+  rooms       Int      @default(1)
+  area        Float    @default(0)
+  price       Float
+  status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD
+  coordinates Json?    // Stores polygon points for floor plan visualization
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project      Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  floor        Floor                  @relation(fields: [floorId], references: [id], onDelete: Cascade)
+  reservations ReservationRequest[]
+
+  @@index([projectId])
+  @@index([floorId])
+}
+
+// Reservation Request
+model ReservationRequest {
+  id          String   @id @default(cuid())
+  clientId    String
+  name        String
+  phone       String
+  email       String
+  message     String?
+  projectId   String
+  apartmentId String?
+  status      String   @default("PENDING") // PENDING, CONTACTED, COMPLETED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  apartment Apartment? @relation(fields: [apartmentId], references: [id], onDelete: SetNull)
+
+  @@index([clientId])
+  @@index([projectId])
+  @@index([apartmentId])
+}
+
+// Custom Domain for Client
+model Domain {
+  id        String   @id @default(cuid())
+  clientId  String
+  domain    String   @unique // e.g., prestige.com or prestige.yoursite.com
+  isPrimary Boolean  @default(false)
+  status    String   @default("PENDING") // PENDING, VERIFIED, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([status])
+}
