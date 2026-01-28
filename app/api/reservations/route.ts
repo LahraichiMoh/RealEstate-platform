@@ -38,8 +38,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = reservationRequestSchema.parse(body);
 
+    const project = await prisma.project.findUnique({
+      where: { id: validatedData.projectId },
+    });
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
     const reservation = await prisma.reservationRequest.create({
-      data: validatedData,
+      data: {
+        ...validatedData,
+        clientId: project.clientId,
+      },
       include: {
         project: true,
         apartment: true,

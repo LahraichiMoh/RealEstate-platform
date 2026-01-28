@@ -51,8 +51,14 @@ export async function POST(request: NextRequest) {
     const data = await request.json()
     const validated = clientSchema.parse(data)
 
+    // Generate a random access code
+    const accessCode = Math.random().toString(36).substring(2, 10).toUpperCase()
+
     const client = await prisma.client.create({
-      data: validated,
+      data: {
+        ...validated,
+        accessCode,
+      },
     })
 
     return NextResponse.json({ client }, { status: 201 })

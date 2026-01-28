@@ -195,7 +195,7 @@ function ClientDashboard({ clientId }: { clientId: string }) {
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={[
+              <Pie dataKey="value" data={[
                 { name: "Available", value: 28 },
                 { name: "Reserved", value: 32 },
                 { name: "Sold", value: 12 },

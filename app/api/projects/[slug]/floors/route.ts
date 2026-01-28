@@ -5,10 +5,11 @@ import { auth } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { projectId } = await params;
+    const { slug } = await params;
+    const projectId = slug;
 
     const floors = await prisma.floor.findMany({
       where: { projectId },
@@ -32,7 +33,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
     const session = await auth();
@@ -43,7 +44,8 @@ export async function POST(
       );
     }
 
-    const { projectId } = await params;
+    const { slug } = await params;
+    const projectId = slug;
     const body = await request.json();
     const validatedData = floorSchema.parse(body);
 

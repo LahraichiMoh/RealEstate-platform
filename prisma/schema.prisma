@@ -5,8 +5,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -99,7 +100,7 @@ model Apartment {
   area        Float    @default(0)
   price       Float
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD
-  coordinates Json?    // Stores polygon points for floor plan visualization
+  coordinates String?    // Stores polygon points for floor plan visualization
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

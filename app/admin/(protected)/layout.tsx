@@ -9,6 +9,8 @@ export const metadata = {
   description: "Real Estate Platform Admin",
 };
 
+import SessionProvider from "@/components/session-provider";
+
 export default async function AdminLayout({
   children,
 }: {
@@ -21,14 +23,16 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <AdminNav />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
+    <SessionProvider session={session}>
+      <div className="flex h-screen bg-background">
+        <AdminNav />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 overflow-auto">
+            {children}
+          </main>
+        </div>
+        <Toaster />
       </div>
-      <Toaster />
-    </div>
+    </SessionProvider>
   );
 }

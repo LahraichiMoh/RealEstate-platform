@@ -162,18 +162,18 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
           {/* 3D Building View */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
             <div className="aspect-video bg-gradient-to-b from-sky-100 to-slate-50 rounded-lg overflow-hidden">
-              <Suspense fallback={<Building2DFallback floors={project.floors} selectedFloorId={selectedFloorId} onFloorClick={setSelectedFloorId} onApartmentClick={setSelectedApartmentId} />}>
+              <Suspense fallback={<Building2DFallback floors={project.floors} selectedFloorId={selectedFloorId ?? undefined} onFloorClick={setSelectedFloorId} onApartmentClick={setSelectedApartmentId} />}>
                 {typeof window !== "undefined" && "WebGL" in window ? (
                   <BuildingScene
                     floors={project.floors}
-                    selectedFloorId={selectedFloorId || bestMatchingFloor}
+                    selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
                     onFloorClick={setSelectedFloorId}
                     onApartmentClick={setSelectedApartmentId}
                   />
                 ) : (
                   <Building2DFallback
                     floors={project.floors}
-                    selectedFloorId={selectedFloorId || bestMatchingFloor}
+                    selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
                     onFloorClick={setSelectedFloorId}
                     onApartmentClick={setSelectedApartmentId}
                   />

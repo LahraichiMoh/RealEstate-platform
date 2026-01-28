@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth()
@@ -15,7 +15,7 @@ export async function DELETE(
 
     const userRole = (session.user as any).role
     const sessionClientId = (session.user as any).clientId
-    const userId = params.id
+    const { id: userId } = await params
 
     // Get the user to delete
     const targetUser = await prisma.user.findUnique({

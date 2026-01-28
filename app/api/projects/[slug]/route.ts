@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { slug } = await params;
 
-    const project = await prisma.project.findUnique({
+    let project = await prisma.project.findFirst({
       where: { slug },
       include: {
         floors: {
@@ -21,6 +21,22 @@ export async function GET(
         },
       },
     });
+
+    if (!project) {
+      project = await prisma.project.findUnique({
+        where: { id: slug },
+        include: {
+          floors: {
+            include: {
+              apartments: true,
+            },
+            orderBy: {
+              floorNumber: "asc",
+            },
+          },
+        },
+      });
+    }
 
     if (!project) {
       return NextResponse.json(
@@ -47,12 +63,25 @@ export async function PATCH(
     const { slug } = await params;
     const body = await request.json();
 
-    const project = await prisma.project.update({
-      where: { slug },
+    // Check if project exists by slug or id
+    let project = await prisma.project.findFirst({ where: { slug } });
+    if (!project) {
+      project = await prisma.project.findUnique({ where: { id: slug } });
+    }
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id: project.id },
       data: body,
     });
 
-    return NextResponse.json(project);
+    return NextResponse.json(updatedProject);
   } catch (error) {
     console.error("[Project PATCH]", error);
     return NextResponse.json(
@@ -69,8 +98,21 @@ export async function DELETE(
   try {
     const { slug } = await params;
 
+    // Check if project exists by slug or id
+    let project = await prisma.project.findFirst({ where: { slug } });
+    if (!project) {
+      project = await prisma.project.findUnique({ where: { id: slug } });
+    }
+
+    if (!project) {
+      return NextResponse.json(
+        { error: "Project not found" },
+        { status: 404 }
+      );
+    }
+
     await prisma.project.delete({
-      where: { slug },
+      where: { id: project.id },
     });
 
     return NextResponse.json({ success: true });

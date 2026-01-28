@@ -56,7 +56,7 @@ export default function AdminNav() {
         <Button
           variant="ghost"
           className="w-full justify-start text-destructive hover:text-destructive"
-          onClick={() => signOut({ redirectUrl: "/admin/login" })}
+          onClick={() => signOut({ redirectTo: "/admin/login" })}
         >
           <LogOut className="w-4 h-4 mr-2" />
           Logout
