@@ -28,7 +28,13 @@ export const projectSchema = z.object({
   description: z.string().optional(),
   location: z.string().min(1, "Location is required"),
   coverImage: z.string().optional(),
+  buildingImage: z.string().optional(),
   floorsCount: z.number().int().min(1, "Must have at least 1 floor"),
+  floorsConfig: z.array(z.object({
+    floorNumber: z.number().int(),
+    apartmentsCount: z.number().int().min(0).default(0),
+    coordinates: z.string().optional(),
+  })).optional(),
 });
 
 export type ProjectInput = z.infer<typeof projectSchema>;

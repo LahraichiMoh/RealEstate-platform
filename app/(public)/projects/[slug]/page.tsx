@@ -11,6 +11,8 @@ import { Building2DFallback } from "@/components/3d/building-scene";
 import ApartmentDetailsModal from "@/components/public/apartment-details-modal";
 import ApartmentFilters from "@/components/public/apartment-filters";
 
+import BuildingImageInteractive from "@/components/public/BuildingImageInteractive";
+
 const BuildingScene = dynamic(
   () => import("@/components/3d/building-scene").then((mod) => mod.BuildingScene),
   { ssr: false, loading: () => <div className="w-full h-96 bg-slate-100 rounded-lg flex items-center justify-center">Loading 3D view...</div> }
@@ -24,6 +26,7 @@ interface Floor {
   id: string;
   floorNumber: number;
   label: string | null;
+  coordinates?: string | null;
   apartments: Apartment[];
 }
 
@@ -44,6 +47,7 @@ interface Project {
   description: string | null;
   location: string;
   coverImage: string | null;
+  buildingImage: string | null;
   floorsCount: number;
   floors: Floor[];
 }
@@ -69,19 +73,15 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
     fetchProject();
   }, [slug]);
 
-  // Auto-select first available floor on load
+  // Scroll to selected floor
   useEffect(() => {
-    if (project && !selectedFloorId) {
-      const floorWithAvailable = project.floors.find((floor) =>
-        floor.apartments.some((apt) => apt.status === "AVAILABLE")
-      );
-      if (floorWithAvailable) {
-        setSelectedFloorId(floorWithAvailable.id);
-      } else if (project.floors.length > 0) {
-        setSelectedFloorId(project.floors[0].id);
+    if (selectedFloorId) {
+      const element = document.getElementById(`floor-${selectedFloorId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
       }
     }
-  }, [project, selectedFloorId]);
+  }, [selectedFloorId]);
 
   async function fetchProject() {
     try {
@@ -161,25 +161,34 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
         <div className="max-w-6xl mx-auto space-y-6">
           {/* 3D Building View */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <div className="aspect-video bg-gradient-to-b from-sky-100 to-slate-50 rounded-lg overflow-hidden">
-              <Suspense fallback={<Building2DFallback floors={project.floors} selectedFloorId={selectedFloorId ?? undefined} onFloorClick={setSelectedFloorId} onApartmentClick={setSelectedApartmentId} />}>
-                {typeof window !== "undefined" && "WebGL" in window ? (
-                  <BuildingScene
+            {project.buildingImage ? (
+                <BuildingImageInteractive 
+                    image={project.buildingImage}
                     floors={project.floors}
-                    selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
-                    onFloorClick={setSelectedFloorId}
-                    onApartmentClick={setSelectedApartmentId}
-                  />
-                ) : (
-                  <Building2DFallback
-                    floors={project.floors}
-                    selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
-                    onFloorClick={setSelectedFloorId}
-                    onApartmentClick={setSelectedApartmentId}
-                  />
-                )}
-              </Suspense>
-            </div>
+                    selectedFloorId={selectedFloorId || bestMatchingFloor}
+                    onFloorSelect={setSelectedFloorId}
+                />
+            ) : (
+                <div className="aspect-video bg-gradient-to-b from-sky-100 to-slate-50 rounded-lg overflow-hidden">
+                    <Suspense fallback={<Building2DFallback floors={project.floors} selectedFloorId={selectedFloorId ?? undefined} onFloorClick={setSelectedFloorId} onApartmentClick={setSelectedApartmentId} />}>
+                        {typeof window !== "undefined" && "WebGL" in window ? (
+                        <BuildingScene
+                            floors={project.floors}
+                            selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
+                            onFloorClick={setSelectedFloorId}
+                            onApartmentClick={setSelectedApartmentId}
+                        />
+                        ) : (
+                        <Building2DFallback
+                            floors={project.floors}
+                            selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
+                            onFloorClick={setSelectedFloorId}
+                            onApartmentClick={setSelectedApartmentId}
+                        />
+                        )}
+                    </Suspense>
+                </div>
+            )}
           </div>
 
           {/* Tabs for Filters and Apartments */}
@@ -189,49 +198,74 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
               <TabsTrigger value="filters">Filters</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="apartments" className="space-y-4 mt-6">
-              {selectedFloor && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-4">
-                    {selectedFloor.label || `Floor ${selectedFloor.floorNumber}`}
-                  </h2>
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {selectedFloor.apartments.map((apt) => (
-                      <Card
-                        key={apt.id}
-                        className="cursor-pointer hover:shadow-lg transition-shadow"
-                        onClick={() => setSelectedApartmentId(apt.id)}
-                      >
-                        <CardHeader>
-                          <CardTitle className="text-lg">Apartment {apt.number}</CardTitle>
-                          <CardDescription>
-                            {apt.rooms} rooms • {apt.area} m²
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            <div className="text-2xl font-bold">
-                              ${apt.price.toLocaleString()}
-                            </div>
-                            <div>
-                              <span
-                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                  apt.status === "AVAILABLE"
-                                    ? "bg-green-100 text-green-800"
-                                    : apt.status === "RESERVED"
-                                      ? "bg-amber-100 text-amber-800"
-                                      : "bg-red-100 text-red-800"
-                                }`}
-                              >
-                                {apt.status}
-                              </span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+            <TabsContent value="apartments" className="space-y-8 mt-6">
+              {project.floors
+                .sort((a, b) => a.floorNumber - b.floorNumber)
+                .map((floor) => (
+                <div key={floor.id} id={`floor-${floor.id}`} className={`scroll-mt-24 transition-colors duration-500 p-4 rounded-xl ${selectedFloorId === floor.id ? 'bg-blue-50/50 ring-1 ring-blue-100' : ''}`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-bold">
+                      {floor.label || `Floor ${floor.floorNumber}`}
+                    </h2>
+                    {selectedFloorId === floor.id && (
+                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Selected</span>
+                    )}
                   </div>
+                  
+                  {floor.apartments.length > 0 ? (
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {floor.apartments.map((apt) => (
+                          <Card
+                            key={apt.id}
+                            className="cursor-pointer hover:shadow-lg transition-shadow group"
+                            onClick={() => setSelectedApartmentId(apt.id)}
+                          >
+                            <CardHeader>
+                              <CardTitle className="text-lg flex justify-between items-start">
+                                <span>Apartment {apt.number}</span>
+                              </CardTitle>
+                              <CardDescription>
+                                {apt.rooms} rooms • {apt.area} m²
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-2">
+                                <div className="text-2xl font-bold text-primary">
+                                  ${apt.price.toLocaleString()}
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                      apt.status === "AVAILABLE"
+                                        ? "bg-green-100 text-green-800"
+                                        : apt.status === "RESERVED"
+                                          ? "bg-amber-100 text-amber-800"
+                                          : "bg-red-100 text-red-800"
+                                    }`}
+                                  >
+                                    {apt.status}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                                    View Details →
+                                  </span>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                  ) : (
+                    <div className="text-center py-8 bg-slate-50 rounded-lg border border-dashed">
+                        <p className="text-muted-foreground">No apartments listed for this floor.</p>
+                    </div>
+                  )}
                 </div>
+              ))}
+              
+              {project.floors.length === 0 && (
+                 <div className="text-center py-12">
+                    <p className="text-muted-foreground text-lg">No floors configured for this project.</p>
+                 </div>
               )}
             </TabsContent>
 

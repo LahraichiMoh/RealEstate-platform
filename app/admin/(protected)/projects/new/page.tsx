@@ -1,8 +1,6 @@
 "use client";
 
-import React from "react"
-
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -25,6 +23,29 @@ export default function NewProjectPage() {
     floorsCount: 10,
   });
 
+  const [floorsConfig, setFloorsConfig] = useState<{ floorNumber: number; apartmentsCount: number }[]>([]);
+
+  useEffect(() => {
+    const count = parseInt(formData.floorsCount.toString()) || 0;
+    setFloorsConfig(prev => {
+      const newConfig = [];
+      for (let i = 1; i <= count; i++) {
+        const existing = prev.find(p => p.floorNumber === i);
+        newConfig.push({
+          floorNumber: i,
+          apartmentsCount: existing ? existing.apartmentsCount : 2 // Default to 2 apartments
+        });
+      }
+      return newConfig;
+    });
+  }, [formData.floorsCount]);
+
+  const handleApartmentCountChange = (floorNumber: number, count: number) => {
+    setFloorsConfig(prev => prev.map(f => 
+      f.floorNumber === floorNumber ? { ...f, apartmentsCount: count } : f
+    ));
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -36,6 +57,7 @@ export default function NewProjectPage() {
         body: JSON.stringify({
           ...formData,
           floorsCount: parseInt(formData.floorsCount.toString()),
+          floorsConfig
         }),
       });
 
@@ -136,10 +158,31 @@ export default function NewProjectPage() {
                 min="1"
                 required
                 value={formData.floorsCount}
-                onChange={(e) => setFormData({ ...formData, floorsCount: parseInt(e.target.value) })}
+                onChange={(e) => setFormData({ ...formData, floorsCount: parseInt(e.target.value) || 0 })}
                 disabled={isSubmitting}
               />
             </div>
+
+            {floorsConfig.length > 0 && (
+              <div className="space-y-4 border rounded-md p-4">
+                <h3 className="font-medium">Apartments per Floor</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  {floorsConfig.map((floor) => (
+                    <div key={floor.floorNumber} className="space-y-1">
+                      <Label htmlFor={`floor-${floor.floorNumber}`}>Floor {floor.floorNumber}</Label>
+                      <Input
+                        id={`floor-${floor.floorNumber}`}
+                        type="number"
+                        min="0"
+                        value={floor.apartmentsCount}
+                        onChange={(e) => handleApartmentCountChange(floor.floorNumber, parseInt(e.target.value) || 0)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <Button type="submit" disabled={isSubmitting}>

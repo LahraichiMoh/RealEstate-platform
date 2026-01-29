@@ -76,9 +76,80 @@ export async function PATCH(
       );
     }
 
-    const updatedProject = await prisma.project.update({
-      where: { id: project.id },
-      data: body,
+    const { floorsConfig, ...updateData } = body;
+
+    const updatedProject = await prisma.$transaction(async (tx) => {
+      // Update basic project info
+      const updated = await tx.project.update({
+        where: { id: project.id },
+        data: updateData,
+      });
+
+      // Handle floors config update
+      if (floorsConfig && Array.isArray(floorsConfig)) {
+        for (const config of floorsConfig) {
+          // Find existing floor
+          const existingFloor = await tx.floor.findFirst({
+            where: {
+              projectId: project.id,
+              floorNumber: config.floorNumber,
+            },
+            include: {
+              _count: {
+                select: { apartments: true }
+              }
+            }
+          });
+
+          let floorId = "";
+          let currentApartmentsCount = 0;
+
+          if (existingFloor) {
+            floorId = existingFloor.id;
+            currentApartmentsCount = existingFloor._count.apartments;
+
+            if (config.coordinates !== undefined) {
+              await tx.floor.update({
+                where: { id: existingFloor.id },
+                data: { coordinates: config.coordinates } as any
+              });
+            }
+          } else {
+            const newFloor = await tx.floor.create({
+              data: {
+                projectId: project.id,
+                floorNumber: config.floorNumber,
+                label: `Floor ${config.floorNumber}`,
+                coordinates: config.coordinates,
+              } as any,
+            });
+            floorId = newFloor.id;
+            currentApartmentsCount = 0;
+          }
+
+          const targetApartmentsCount = config.apartmentsCount;
+
+          if (targetApartmentsCount > currentApartmentsCount) {
+            // Add missing apartments
+            const apartmentsToAdd = targetApartmentsCount - currentApartmentsCount;
+            const newApartmentsData = Array.from({ length: apartmentsToAdd }).map((_, idx) => ({
+              projectId: project.id,
+              floorId: floorId,
+              number: `${config.floorNumber}${String(currentApartmentsCount + idx + 1).padStart(2, '0')}`,
+              rooms: 1,
+              area: 50,
+              price: 0,
+              status: "AVAILABLE",
+            }));
+
+            await tx.apartment.createMany({
+              data: newApartmentsData,
+            });
+          }
+        }
+      }
+
+      return updated;
     });
 
     return NextResponse.json(updatedProject);

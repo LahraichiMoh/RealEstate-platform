@@ -62,6 +62,7 @@ model Project {
   description String?
   location    String
   coverImage  String?
+  buildingImage String? // 3D/2D visualization of the building
   floorsCount Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -81,6 +82,7 @@ model Floor {
   projectId   String
   floorNumber Int
   label       String?
+  coordinates String?  // SVG polygon coordinates for the floor on the building image
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -101,6 +103,9 @@ model Apartment {
   price       Float
   status      String   @default("AVAILABLE") // AVAILABLE, RESERVED, SOLD
   coordinates String?    // Stores polygon points for floor plan visualization
+  planImage   String?  // 2D plan image URL
+  plan3dImage String?  // 3D plan image URL
+  images      String?  // JSON string of image URLs
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

@@ -17,17 +17,22 @@ export async function PATCH(
 
     const { id } = await params;
     const body = await request.json();
+    console.log("[Apartment PATCH] Updating apartment:", id, "with body:", JSON.stringify(body, null, 2));
 
     const apartment = await prisma.apartment.update({
       where: { id },
       data: body,
     });
 
+    console.log("[Apartment PATCH] Success:", apartment);
     return NextResponse.json(apartment);
   } catch (error) {
-    console.error("[Apartment PATCH]", error);
+    console.error("[Apartment PATCH] Error:", error);
+    if (error instanceof Error) {
+        console.error("[Apartment PATCH] Stack:", error.stack);
+    }
     return NextResponse.json(
-      { error: "Failed to update apartment" },
+      { error: "Failed to update apartment", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }

@@ -68,11 +68,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const project = await prisma.project.create({
-      data: {
-        ...validatedData,
-        clientId,
-      },
+    const { floorsConfig, ...projectData } = validatedData;
+
+    // Transaction to create project, floors, and apartments
+    const project = await prisma.$transaction(async (tx) => {
+      // 1. Create Project
+      const newProject = await tx.project.create({
+        data: {
+          ...projectData,
+          clientId,
+        },
+      });
+
+      // 2. Create Floors and Apartments
+      if (floorsConfig && floorsConfig.length > 0) {
+        for (const config of floorsConfig) {
+          const floor = await tx.floor.create({
+            data: {
+              projectId: newProject.id,
+              floorNumber: config.floorNumber,
+              label: `Floor ${config.floorNumber}`,
+            },
+          });
+
+          if (config.apartmentsCount > 0) {
+            const apartmentsData = Array.from({ length: config.apartmentsCount }).map((_, idx) => ({
+              projectId: newProject.id,
+              floorId: floor.id,
+              number: `${config.floorNumber}${String(idx + 1).padStart(2, '0')}`, // e.g., 101, 102
+              rooms: 1, // Default configuration
+              area: 50, // Default configuration
+              price: 0, // Default configuration
+              status: "AVAILABLE",
+            }));
+
+            await tx.apartment.createMany({
+              data: apartmentsData,
+            });
+          }
+        }
+      }
+
+      return newProject;
     });
 
     return NextResponse.json(project, { status: 201 });
