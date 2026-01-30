@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Wand2, Save, Plus, X, ArrowDown } from "lucide-react";
+import { Loader2, Upload, Wand2, Save, Plus, X, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Point {
@@ -28,8 +28,14 @@ interface Spine {
   bottom: Point;
 }
 
+interface ClosestEdge {
+  floor: number;
+  index: number;
+  point: Point;
+}
+
 export default function BuildingVisualizationEditor({
-  projectId,
+  projectId: _projectId,
   initialImage,
   floors,
   onSave,
@@ -41,6 +47,7 @@ export default function BuildingVisualizationEditor({
   // Store points as percentages (0-100)
   const [floorPolygons, setFloorPolygons] = useState<Record<number, Point[]>>({});
   const [selectedPoint, setSelectedPoint] = useState<{ floor: number; index: number } | null>(null);
+  const [hoveredEdgePoint, setHoveredEdgePoint] = useState<{ x: number, y: number, floor: number, index: number } | null>(null);
   
   // Wizard Mode State (Vertical Spines)
   const [isWizardMode, setIsWizardMode] = useState(false);
@@ -131,7 +138,7 @@ export default function BuildingVisualizationEditor({
   };
 
   const addSpine = () => {
-    const newId = Math.random().toString(36).substr(2, 9);
+    const newId = Math.random().toString(36).substring(2, 9);
     // Add slightly offset from last one
     const last = spines[spines.length - 1];
     const newSpine = {
@@ -238,6 +245,41 @@ export default function BuildingVisualizationEditor({
         points[selectedPoint.index] = { x: clampedX, y: clampedY };
         return { ...prev, [selectedPoint.floor]: points };
       });
+      setHoveredEdgePoint(null); // Clear ghost point while dragging
+    } else if (!isWizardMode) {
+      // Logic to find closest edge for ghost point
+      const mousePoint = { x: clampedX, y: clampedY };
+      let minDist = Infinity;
+      let closest: ClosestEdge | null = null;
+      const HOVER_THRESHOLD = 3.0; // Increased threshold for easier detection
+
+      for (const [floorNumStr, points] of Object.entries(floorPolygons)) {
+          const floorNum = Number(floorNumStr);
+          if (points.length < 2) continue;
+
+          for (let i = 0; i < points.length; i++) {
+              const p1 = points[i];
+              const p2 = points[(i + 1) % points.length];
+              const proj = getClosestPointOnSegment(mousePoint, p1, p2);
+              const d = Math.sqrt(distSq(mousePoint, proj));
+              
+              if (d < minDist) {
+                  minDist = d;
+                  closest = { floor: floorNum, index: i, point: proj };
+              }
+          }
+      }
+
+      if (closest && minDist < HOVER_THRESHOLD) {
+          setHoveredEdgePoint({
+              x: closest.point.x,
+              y: closest.point.y,
+              floor: closest.floor,
+              index: closest.index
+          });
+      } else {
+          setHoveredEdgePoint(null);
+      }
     }
   };
 
@@ -245,6 +287,111 @@ export default function BuildingVisualizationEditor({
     setSelectedPoint(null);
     setSelectedSpinePoint(null);
   };
+
+  const handlePointDoubleClick = (floor: number, index: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setFloorPolygons(prev => {
+        const points = [...(prev[floor] || [])];
+        if (points.length <= 3) {
+            toast({ title: "Cannot remove", description: "A floor must have at least 3 points.", variant: "destructive" });
+            return prev;
+        }
+        points.splice(index, 1);
+        return { ...prev, [floor]: points };
+    });
+    toast({ title: "Point Removed", description: "Vertex deleted." });
+  };
+
+  // Geometry helpers
+  const distSq = (p1: Point, p2: Point) => (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2;
+  
+  const getClosestPointOnSegment = (p: Point, a: Point, b: Point) => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return a;
+    
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq));
+    return { x: a.x + t * dx, y: a.y + t * dy };
+  };
+
+  const handleContainerMouseDown = (e: React.MouseEvent) => {
+    // If wizard mode, do nothing regarding polygon splitting
+    if (isWizardMode) return;
+    
+    // If we clicked a handle, that logic is handled by handleMouseDown on the handle itself (stopPropagation)
+    // So if we are here, we clicked the background/image/polygon body.
+    
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const clickPoint = { x, y };
+
+    // Find closest edge
+    let minDist = Infinity;
+    let closestEdge: ClosestEdge | null = null;
+    const THRESHOLD = 3.0; // Increased threshold to match hover
+
+    for (const [floorNumStr, points] of Object.entries(floorPolygons)) {
+        const floorNum = Number(floorNumStr);
+        if (points.length < 2) continue;
+
+        for (let i = 0; i < points.length; i++) {
+            const p1 = points[i];
+            const p2 = points[(i + 1) % points.length];
+            const proj = getClosestPointOnSegment(clickPoint, p1, p2);
+            const d = Math.sqrt(distSq(clickPoint, proj));
+            
+            if (d < minDist) {
+                minDist = d;
+                closestEdge = { floor: floorNum, index: i, point: proj };
+            }
+        }
+    }
+
+    if (closestEdge && minDist < THRESHOLD) {
+        // Insert point
+        setFloorPolygons(prev => {
+            const floor = closestEdge!.floor;
+            const newPoints = [...(prev[floor] || [])];
+            // Insert after index (because segment is i -> i+1)
+            newPoints.splice(closestEdge!.index + 1, 0, closestEdge!.point);
+            return { ...prev, [floor]: newPoints };
+        });
+        
+        // Immediately select it for dragging
+        // The index of new point is closestEdge.index + 1
+        setSelectedPoint({ floor: closestEdge!.floor, index: closestEdge!.index + 1 });
+        setHoveredEdgePoint(null); // Clear ghost point
+    }
+  };
+
+  const handleAddPolygon = (floorNum: number) => {
+    // Try to find a reference polygon (e.g. floor below)
+    const refFloorNum = floorNum > 1 ? floorNum - 1 : floorNum + 1;
+    const refPolygon = floorPolygons[refFloorNum];
+    
+    let newPoints: Point[];
+    if (refPolygon) {
+      // Copy reference and shift slightly up (visual cue)
+      newPoints = refPolygon.map(p => ({ ...p, y: Math.max(0, p.y - 5) }));
+    } else {
+      // Default square in center
+      newPoints = [
+        { x: 40, y: 40 },
+        { x: 60, y: 40 },
+        { x: 60, y: 60 },
+        { x: 40, y: 60 }
+      ];
+    }
+    
+    setFloorPolygons(prev => ({ ...prev, [floorNum]: newPoints }));
+    toast({ title: "Zone Added", description: `Floor ${floorNum} zone initialized.` });
+  };
+
+  const floorsWithoutPolygon = floors.filter(f => !floorPolygons[f.floorNumber]);
 
   const handleSave = async () => {
     if (!image) return;
@@ -311,8 +458,29 @@ export default function BuildingVisualizationEditor({
       <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
         {isWizardMode 
             ? "Place vertical guides at the building's corners and edges. The system will interpolate floors between them." 
-            : "Upload an image, then use the 'Auto-Detect Wizard' to generate floor zones for complex 3D shapes."}
+            : "Click on any edge to add a point. Drag points to adjust. Double-click a point to remove it."}
       </div>
+
+      {floorsWithoutPolygon.length > 0 && !isWizardMode && (
+          <div className="flex flex-wrap items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm">
+            <div className="flex items-center text-yellow-800 font-medium">
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              Unmapped Floors:
+            </div>
+            {floorsWithoutPolygon.map(f => (
+              <Button 
+                key={f.floorNumber} 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleAddPolygon(f.floorNumber)}
+                className="h-7 text-xs bg-white border-yellow-300 hover:bg-yellow-100 text-yellow-900"
+              >
+                <Plus className="w-3 h-3 mr-1" />
+                Floor {f.floorNumber}
+              </Button>
+            ))}
+          </div>
+      )}
 
       <div 
         ref={containerRef}
@@ -320,6 +488,7 @@ export default function BuildingVisualizationEditor({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onMouseDown={handleContainerMouseDown}
       >
         {image ? (
             <>
@@ -441,6 +610,7 @@ export default function BuildingVisualizationEditor({
                                 className="absolute w-3 h-3 bg-blue-500 border border-white rounded-full cursor-move transform -translate-x-1/2 -translate-y-1/2 hover:scale-125 transition-transform shadow-md z-10"
                                 style={{ left: `${p.x}%`, top: `${p.y}%` }}
                                 onMouseDown={(e) => handleMouseDown(Number(floorNum), idx, e)}
+                                onDoubleClick={(e) => handlePointDoubleClick(Number(floorNum), idx, e)}
                             />
                         ))}
                         {/* Floor Label */}
@@ -455,6 +625,16 @@ export default function BuildingVisualizationEditor({
                         </div>
                     </div>
                 ))}
+
+                {/* Ghost Point for adding new vertices */}
+                {!isWizardMode && hoveredEdgePoint && (
+                    <div
+                        className="absolute w-4 h-4 bg-green-500/50 border-2 border-green-500 rounded-full pointer-events-none transform -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center animate-pulse"
+                        style={{ left: `${hoveredEdgePoint.x}%`, top: `${hoveredEdgePoint.y}%` }}
+                    >
+                        <Plus className="w-3 h-3 text-white" />
+                    </div>
+                )}
             </>
         ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">

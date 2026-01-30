@@ -68,7 +68,7 @@ export default function ProjectApartmentManager({ floors, onApartmentUpdate }: P
                           {apt.status}
                         </Badge>
                         <div className="text-sm text-muted-foreground hidden sm:block">
-                          {apt.rooms} rooms • {apt.area} m² • ${apt.price.toLocaleString()}
+                          {apt.rooms} rooms • {apt.area} m² • {apt.price.toLocaleString()} MAD
                         </div>
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => handleEdit(apt)}>

@@ -64,6 +64,7 @@ model Project {
   coverImage  String?
   buildingImage String? // 3D/2D visualization of the building
   floorsCount Int      @default(0)
+  completionPercentage Int @default(0) // Percentage of construction completed (0-100)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

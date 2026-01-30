@@ -1,16 +1,15 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { use } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, MapPin, ChevronDown, ChevronUp } from "lucide-react";
+import { Building2, MapPin } from "lucide-react";
 import { Building2DFallback } from "@/components/3d/building-scene";
 import ApartmentDetailsModal from "@/components/public/apartment-details-modal";
-import ApartmentFilters from "@/components/public/apartment-filters";
-
+import ApartmentFiltersModern from "@/components/public/apartment-filters-modern";
+import ApartmentListItem from "@/components/public/apartment-list-item";
 import BuildingImageInteractive from "@/components/public/BuildingImageInteractive";
 
 const BuildingScene = dynamic(
@@ -58,16 +57,15 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFloorId, setSelectedFloorId] = useState<string | null>(null);
   const [selectedApartmentId, setSelectedApartmentId] = useState<string | null>(null);
+  
   const [filters, setFilters] = useState({
-    status: "",
-    minRooms: 0,
-    maxRooms: 10,
+    selectedFloor: null as number | null,
+    selectedRooms: null as number | null,
     minPrice: 0,
     maxPrice: 10000000,
-    minArea: 0,
-    maxArea: 1000,
+    hasTerrace: false,
+    isCommercial: false,
   });
-  const [expandedFloors, setExpandedFloors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchProject();
@@ -89,12 +87,58 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
       if (!response.ok) throw new Error("Failed to fetch project");
       const data = await response.json();
       setProject(data);
+      
+      // Initialize price range from data
+      if (data && data.floors) {
+        const allApartments = data.floors.flatMap((f: Floor) => f.apartments);
+        if (allApartments.length > 0) {
+          const prices = allApartments.map((a: Apartment) => a.price);
+          const min = Math.min(...prices);
+          const max = Math.max(...prices);
+          setFilters(prev => ({
+            ...prev,
+            minPrice: min,
+            maxPrice: max,
+          }));
+        }
+      }
     } catch (error) {
       console.error("Failed to fetch project:", error);
     } finally {
       setIsLoading(false);
     }
   }
+
+  // Derived data for filters
+  const { floorNumbers, priceRange } = useMemo(() => {
+    if (!project) return { floorNumbers: [], priceRange: [0, 10000000] as [number, number] };
+    
+    const floors = project.floors.map(f => f.floorNumber).sort((a, b) => a - b);
+    const allApartments = project.floors.flatMap(f => f.apartments);
+    
+    let min = 0;
+    let max = 10000000;
+    
+    if (allApartments.length > 0) {
+      const prices = allApartments.map(a => a.price);
+      min = Math.min(...prices);
+      max = Math.max(...prices);
+    }
+    
+    return { floorNumbers: floors, priceRange: [min, max] as [number, number] };
+  }, [project]);
+
+  const handleClearFilters = () => {
+    setFilters({
+      selectedFloor: null,
+      selectedRooms: null,
+      minPrice: priceRange[0],
+      maxPrice: priceRange[1],
+      hasTerrace: false,
+      isCommercial: false,
+    });
+    setSelectedFloorId(null);
+  };
 
   if (isLoading) {
     return (
@@ -123,26 +167,46 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
     .flatMap((f) => f.apartments)
     .find((a) => a.id === selectedApartmentId);
 
-  // Filter apartments
-  const filteredApartments = project.floors
-    .flatMap((floor) =>
-      floor.apartments.map((apt) => ({ ...apt, floor }))
-    )
-    .filter((apt) => {
-      if (filters.status && apt.status !== filters.status) return false;
-      if (apt.rooms < filters.minRooms || apt.rooms > filters.maxRooms) return false;
-      if (apt.price < filters.minPrice || apt.price > filters.maxPrice) return false;
-      if (apt.area < filters.minArea || apt.area > filters.maxArea) return false;
+  // Filter logic
+  const displayedFloors = project.floors
+    .sort((a, b) => a.floorNumber - b.floorNumber)
+    .filter(floor => {
+      // Filter by floor number if selected
+      if (filters.selectedFloor !== null && floor.floorNumber !== filters.selectedFloor) {
+        return false;
+      }
       return true;
-    });
-
-  const bestMatchingFloor = filteredApartments.length > 0
-    ? filteredApartments[0].floor.id
-    : selectedFloorId;
+    })
+    .map(floor => {
+      // Filter apartments within the floor
+      const filteredApartments = floor.apartments.filter(apt => {
+        // Rooms filter
+        if (filters.selectedRooms !== null && apt.rooms !== filters.selectedRooms) {
+          return false;
+        }
+        // Price filter
+        if (apt.price < filters.minPrice || apt.price > filters.maxPrice) {
+          return false;
+        }
+        // Commercial filter (assuming status or type check - using mock logic for now as 'isCommercial' isn't in schema yet)
+        // If 'isCommercial' is true, we might filter by type if it existed. For now, ignoring or adding placeholder logic.
+        
+        // Terrace filter (placeholder logic as 'hasTerrace' isn't in schema yet)
+        
+        return true;
+      });
+      
+      return {
+        ...floor,
+        apartments: filteredApartments
+      };
+    })
+    // Only show floors that have matching apartments (optional: currently showing empty floors if they match floor filter)
+    // .filter(floor => floor.apartments.length > 0); 
 
   return (
     <main className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header - Hidden
       <section className="py-12 px-4 md:px-8 bg-gradient-to-b from-slate-900 to-slate-800 text-white">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-4">{project.name}</h1>
@@ -155,161 +219,90 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
           )}
         </div>
       </section>
+      */}
+
+      {/* 3D Building View - Full Width */}
+      <section className="w-full bg-slate-50 border-b">
+        {project.buildingImage ? (
+            <BuildingImageInteractive 
+                image={project.buildingImage}
+                floors={project.floors}
+                selectedFloorId={selectedFloorId}
+                onFloorSelect={(id) => {
+                    setSelectedFloorId(id);
+                    // Optional: Sync filter floor selection
+                    const floor = project.floors.find(f => f.id === id);
+                    if (floor) {
+                        setFilters(prev => ({ ...prev, selectedFloor: floor.floorNumber }));
+                    }
+                }}
+                className=""
+            />
+        ) : (
+            <div className="w-full aspect-video bg-gradient-to-b from-sky-100 to-slate-50 overflow-hidden relative">
+                <Suspense fallback={<Building2DFallback floors={project.floors} selectedFloorId={selectedFloorId ?? undefined} onFloorClick={setSelectedFloorId} onApartmentClick={setSelectedApartmentId} />}>
+                    {typeof window !== "undefined" && "WebGL" in window ? (
+                    <BuildingScene
+                        floors={project.floors}
+                        selectedFloorId={selectedFloorId ?? undefined}
+                        onFloorClick={setSelectedFloorId}
+                        onApartmentClick={setSelectedApartmentId}
+                    />
+                    ) : (
+                    <Building2DFallback
+                        floors={project.floors}
+                        selectedFloorId={selectedFloorId ?? undefined}
+                        onFloorClick={setSelectedFloorId}
+                        onApartmentClick={setSelectedApartmentId}
+                    />
+                    )}
+                </Suspense>
+            </div>
+        )}
+      </section>
 
       {/* Main Content */}
       <section className="py-8 px-4 md:px-8">
-        <div className="max-w-6xl mx-auto space-y-6">
-          {/* 3D Building View */}
-          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            {project.buildingImage ? (
-                <BuildingImageInteractive 
-                    image={project.buildingImage}
-                    floors={project.floors}
-                    selectedFloorId={selectedFloorId || bestMatchingFloor}
-                    onFloorSelect={setSelectedFloorId}
-                />
+        <div className="w-full space-y-6">
+          
+          {/* New Modern Filters */}
+          <ApartmentFiltersModern 
+            filters={filters}
+            priceRange={priceRange}
+            floors={floorNumbers}
+            onFiltersChange={setFilters}
+            onClear={handleClearFilters}
+          />
+
+          {/* Apartments List */}
+          <div className="bg-slate-50 rounded-xl overflow-hidden shadow-sm border">
+            {displayedFloors.flatMap(f => f.apartments).length > 0 ? (
+              displayedFloors
+                .flatMap(floor => 
+                  floor.apartments.map(apt => ({
+                    ...apt,
+                    floorNumber: floor.floorNumber
+                  }))
+                )
+                // Sort by floor number ascending (1, 2, 3...) as requested
+                .sort((a, b) => (a.floorNumber || 0) - (b.floorNumber || 0))
+                .map((apt, index) => (
+                  <ApartmentListItem
+                    key={apt.id}
+                    apartment={apt}
+                    onClick={() => setSelectedApartmentId(apt.id)}
+                    className={index % 2 === 0 ? "bg-[#f4f4f5]" : "bg-white"}
+                  />
+                ))
             ) : (
-                <div className="aspect-video bg-gradient-to-b from-sky-100 to-slate-50 rounded-lg overflow-hidden">
-                    <Suspense fallback={<Building2DFallback floors={project.floors} selectedFloorId={selectedFloorId ?? undefined} onFloorClick={setSelectedFloorId} onApartmentClick={setSelectedApartmentId} />}>
-                        {typeof window !== "undefined" && "WebGL" in window ? (
-                        <BuildingScene
-                            floors={project.floors}
-                            selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
-                            onFloorClick={setSelectedFloorId}
-                            onApartmentClick={setSelectedApartmentId}
-                        />
-                        ) : (
-                        <Building2DFallback
-                            floors={project.floors}
-                            selectedFloorId={(selectedFloorId || bestMatchingFloor) ?? undefined}
-                            onFloorClick={setSelectedFloorId}
-                            onApartmentClick={setSelectedApartmentId}
-                        />
-                        )}
-                    </Suspense>
-                </div>
+              <div className="text-center py-12 bg-white">
+                <p className="text-muted-foreground text-lg mb-4">No apartments match your criteria.</p>
+                <Button variant="outline" onClick={handleClearFilters}>
+                  Clear filters
+                </Button>
+              </div>
             )}
           </div>
-
-          {/* Tabs for Filters and Apartments */}
-          <Tabs defaultValue="apartments" className="w-full">
-            <TabsList>
-              <TabsTrigger value="apartments">Apartments</TabsTrigger>
-              <TabsTrigger value="filters">Filters</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="apartments" className="space-y-8 mt-6">
-              {project.floors
-                .sort((a, b) => a.floorNumber - b.floorNumber)
-                .map((floor) => (
-                <div key={floor.id} id={`floor-${floor.id}`} className={`scroll-mt-24 transition-colors duration-500 p-4 rounded-xl ${selectedFloorId === floor.id ? 'bg-blue-50/50 ring-1 ring-blue-100' : ''}`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold">
-                      {floor.label || `Floor ${floor.floorNumber}`}
-                    </h2>
-                    {selectedFloorId === floor.id && (
-                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Selected</span>
-                    )}
-                  </div>
-                  
-                  {floor.apartments.length > 0 ? (
-                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {floor.apartments.map((apt) => (
-                          <Card
-                            key={apt.id}
-                            className="cursor-pointer hover:shadow-lg transition-shadow group"
-                            onClick={() => setSelectedApartmentId(apt.id)}
-                          >
-                            <CardHeader>
-                              <CardTitle className="text-lg flex justify-between items-start">
-                                <span>Apartment {apt.number}</span>
-                              </CardTitle>
-                              <CardDescription>
-                                {apt.rooms} rooms • {apt.area} m²
-                              </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="space-y-2">
-                                <div className="text-2xl font-bold text-primary">
-                                  ${apt.price.toLocaleString()}
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span
-                                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                      apt.status === "AVAILABLE"
-                                        ? "bg-green-100 text-green-800"
-                                        : apt.status === "RESERVED"
-                                          ? "bg-amber-100 text-amber-800"
-                                          : "bg-red-100 text-red-800"
-                                    }`}
-                                  >
-                                    {apt.status}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                                    View Details →
-                                  </span>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                  ) : (
-                    <div className="text-center py-8 bg-slate-50 rounded-lg border border-dashed">
-                        <p className="text-muted-foreground">No apartments listed for this floor.</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {project.floors.length === 0 && (
-                 <div className="text-center py-12">
-                    <p className="text-muted-foreground text-lg">No floors configured for this project.</p>
-                 </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="filters" className="mt-6">
-              <ApartmentFilters filters={filters} onFiltersChange={setFilters} />
-              <div className="mt-6 space-y-4">
-                <h3 className="font-semibold">Matching Apartments ({filteredApartments.length})</h3>
-                <div className="space-y-2">
-                  {filteredApartments.map((apt) => (
-                    <Card
-                      key={apt.id}
-                      className="cursor-pointer hover:shadow-lg transition-shadow"
-                      onClick={() => {
-                        setSelectedFloorId(apt.floor.id);
-                        setSelectedApartmentId(apt.id);
-                      }}
-                    >
-                      <CardContent className="pt-6 flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold">
-                            {apt.floor.label || `Floor ${apt.floor.floorNumber}`} - Apt {apt.number}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {apt.rooms} rooms • {apt.area} m² • ${apt.price.toLocaleString()}
-                          </p>
-                        </div>
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            apt.status === "AVAILABLE"
-                              ? "bg-green-100 text-green-800"
-                              : apt.status === "RESERVED"
-                                ? "bg-amber-100 text-amber-800"
-                                : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {apt.status}
-                        </span>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
         </div>
       </section>
 

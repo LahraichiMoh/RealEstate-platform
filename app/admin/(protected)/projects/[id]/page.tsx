@@ -31,6 +31,7 @@ export default function EditProjectPage() {
   
   const [floorsConfig, setFloorsConfig] = useState<{ floorNumber: number; apartmentsCount: number; coordinates?: string }[]>([]);
   const [fullFloors, setFullFloors] = useState<any[]>([]);
+  const [defaultApartmentsCount, setDefaultApartmentsCount] = useState(2);
 
   useEffect(() => {
     if (params.id) {
@@ -51,13 +52,13 @@ export default function EditProjectPage() {
         const existing = prev.find(p => p.floorNumber === i);
         newConfig.push({
           floorNumber: i,
-          apartmentsCount: existing ? existing.apartmentsCount : 2, // Default to 2
+          apartmentsCount: existing ? existing.apartmentsCount : defaultApartmentsCount, // Use default state
           coordinates: existing?.coordinates
         });
       }
       return newConfig;
     });
-  }, [formData.floorsCount]);
+  }, [formData.floorsCount]); // Remove defaultApartmentsCount dependency to avoid resetting existing values when default changes
 
   async function fetchProject(id: string) {
     try {
@@ -102,6 +103,11 @@ export default function EditProjectPage() {
     setFloorsConfig(prev => prev.map(f => 
       f.floorNumber === floorNumber ? { ...f, apartmentsCount: count } : f
     ));
+  };
+
+  const handleApplyDefaultToAll = () => {
+    setFloorsConfig(prev => prev.map(f => ({ ...f, apartmentsCount: defaultApartmentsCount })));
+    toast({ title: "Applied", description: `Set ${defaultApartmentsCount} apartments for all floors.` });
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -250,6 +256,19 @@ export default function EditProjectPage() {
                     </div>
 
                     <div className="space-y-2">
+                    <Label htmlFor="completionPercentage">Completion Percentage (%)</Label>
+                    <Input
+                        id="completionPercentage"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.completionPercentage}
+                        onChange={(e) => setFormData({ ...formData, completionPercentage: parseInt(e.target.value) || 0 })}
+                        disabled={isSubmitting}
+                    />
+                    </div>
+
+                    <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                         id="description"
@@ -263,7 +282,23 @@ export default function EditProjectPage() {
 
                     {floorsConfig.length > 0 && (
                     <div className="space-y-4 border rounded-md p-4">
-                        <h3 className="font-medium">Apartments per Floor</h3>
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-medium">Apartments per Floor</h3>
+                            <div className="flex items-center gap-2">
+                                <Label htmlFor="defaultApts" className="whitespace-nowrap text-sm text-muted-foreground">Set all to:</Label>
+                                <Input 
+                                    id="defaultApts"
+                                    type="number" 
+                                    min="1"
+                                    className="w-16 h-8"
+                                    value={defaultApartmentsCount}
+                                    onChange={(e) => setDefaultApartmentsCount(parseInt(e.target.value) || 0)}
+                                />
+                                <Button type="button" size="sm" variant="secondary" onClick={handleApplyDefaultToAll}>
+                                    Apply
+                                </Button>
+                            </div>
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                         {floorsConfig.map((floor) => (
                             <div key={floor.floorNumber} className="space-y-1">

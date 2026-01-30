@@ -136,10 +136,10 @@ export default function ApartmentDetailsModal({
                       <DollarSign className="w-4 h-4" /> Price
                     </div>
                     <p className="text-3xl font-bold text-teal-600">
-                      ${apartment.price.toLocaleString()}
+                      {apartment.price.toLocaleString()} MAD
                     </p>
                     <p className="text-sm text-muted-foreground mt-1">
-                      ${Math.round(apartment.price / apartment.area).toLocaleString()} / m²
+                      {Math.round(apartment.price / apartment.area).toLocaleString()} MAD / m²
                     </p>
                   </div>
                 </div>
