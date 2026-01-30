@@ -4,7 +4,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowRight, Building2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 
-async function getProjects() {
+interface Project {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  location: string;
+  coverImage: string | null;
+  floorsCount: number;
+}
+
+async function getProjects(): Promise<Project[]> {
   try {
     const projects = await prisma.project.findMany({
       select: {
@@ -57,7 +67,7 @@ export default async function ProjectsPage() {
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {projects.map((project) => (
+              {projects.map((project: Project) => (
                 <Link key={project.id} href={`/projects/${project.slug}`}>
                   <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
                     {project.coverImage && (

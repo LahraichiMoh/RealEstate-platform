@@ -14,19 +14,30 @@ import { ArrowLeft, Loader2 } from "lucide-react";
 import BuildingVisualizationEditor from "@/components/admin/BuildingVisualizationEditor";
 import ProjectApartmentManager from "@/components/admin/ProjectApartmentManager";
 
+interface ProjectFormData {
+  name: string;
+  slug: string;
+  description: string;
+  location: string;
+  floorsCount: number;
+  buildingImage: string;
+  completionPercentage: number;
+}
+
 export default function EditProjectPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProjectFormData>({
     name: "",
     slug: "",
     description: "",
     location: "",
     floorsCount: 10,
     buildingImage: "",
+    completionPercentage: 0,
   });
   
   const [floorsConfig, setFloorsConfig] = useState<{ floorNumber: number; apartmentsCount: number; coordinates?: string }[]>([]);
@@ -71,6 +82,7 @@ export default function EditProjectPage() {
         description: data.description || "",
         location: data.location,
         floorsCount: data.floorsCount,
+        completionPercentage: data.completionPercentage || 0,
         buildingImage: data.buildingImage || "",
       });
 
@@ -121,6 +133,7 @@ export default function EditProjectPage() {
         body: JSON.stringify({
           ...formData,
           floorsCount: parseInt(formData.floorsCount.toString()),
+          completionPercentage: parseInt(formData.completionPercentage.toString()),
           floorsConfig
         }),
       });

@@ -48,6 +48,7 @@ interface Project {
   coverImage: string | null;
   buildingImage: string | null;
   floorsCount: number;
+  completionPercentage: number;
   floors: Floor[];
 }
 
@@ -126,6 +127,19 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
     }
     
     return { floorNumbers: floors, priceRange: [min, max] as [number, number] };
+  }, [project]);
+
+  const stats = useMemo(() => {
+    if (!project) return { sales: 0, built: 0 };
+    
+    const allApartments = project.floors.flatMap(f => f.apartments);
+    const total = allApartments.length;
+    const sold = allApartments.filter(a => a.status === 'SOLD' || a.status === 'RESERVED').length;
+    
+    return {
+      sales: total > 0 ? Math.round((sold / total) * 100) : 0,
+      built: project.completionPercentage || 0
+    };
   }, [project]);
 
   const handleClearFilters = () => {
@@ -237,6 +251,8 @@ export default function ProjectDetailsPage({ params }: ProjectPageProps) {
                     }
                 }}
                 className=""
+                salesPercentage={stats.sales}
+                builtPercentage={stats.built}
             />
         ) : (
             <div className="w-full aspect-video bg-gradient-to-b from-sky-100 to-slate-50 overflow-hidden relative">
