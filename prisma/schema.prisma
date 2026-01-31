@@ -63,6 +63,7 @@ model Project {
   location    String
   coverImage  String?
   buildingImage String? // 3D/2D visualization of the building
+  model3DUrl    String? // URL for the 3D model file (.glb/.gltf)
   floorsCount Int      @default(0)
   completionPercentage Int @default(0) // Percentage of construction completed (0-100)
   createdAt   DateTime @default(now())

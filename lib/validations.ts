@@ -29,6 +29,7 @@ export const projectSchema = z.object({
   location: z.string().min(1, "Location is required"),
   coverImage: z.string().optional(),
   buildingImage: z.string().optional(),
+  model3DUrl: z.string().optional(),
   floorsCount: z.number().int().min(1, "Must have at least 1 floor"),
   floorsConfig: z.array(z.object({
     floorNumber: z.number().int(),

@@ -22,6 +22,7 @@ interface ProjectFormData {
   floorsCount: number;
   buildingImage: string;
   completionPercentage: number;
+  model3DUrl?: string;
 }
 
 export default function EditProjectPage() {
@@ -29,6 +30,7 @@ export default function EditProjectPage() {
   const params = useParams();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading3D, setIsUploading3D] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState<ProjectFormData>({
     name: "",
@@ -38,6 +40,7 @@ export default function EditProjectPage() {
     floorsCount: 10,
     buildingImage: "",
     completionPercentage: 0,
+    model3DUrl: "",
   });
   
   const [floorsConfig, setFloorsConfig] = useState<{ floorNumber: number; apartmentsCount: number; coordinates?: string }[]>([]);
@@ -84,6 +87,7 @@ export default function EditProjectPage() {
         floorsCount: data.floorsCount,
         completionPercentage: data.completionPercentage || 0,
         buildingImage: data.buildingImage || "",
+        model3DUrl: data.model3DUrl || "",
       });
 
       // Transform fetched floors to config
@@ -120,6 +124,37 @@ export default function EditProjectPage() {
   const handleApplyDefaultToAll = () => {
     setFloorsConfig(prev => prev.map(f => ({ ...f, apartmentsCount: defaultApartmentsCount })));
     toast({ title: "Applied", description: `Set ${defaultApartmentsCount} apartments for all floors.` });
+  };
+
+  const handle3DUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.glb') && !file.name.toLowerCase().endsWith('.gltf')) {
+      toast({ title: "Error", description: "Please upload a GLB or GLTF file", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading3D(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formDataUpload,
+      });
+      
+      if (!res.ok) throw new Error("Upload failed");
+      
+      const data = await res.json();
+      setFormData(prev => ({ ...prev, model3DUrl: data.url }));
+      toast({ title: "Success", description: "3D model uploaded successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to upload 3D model", variant: "destructive" });
+    } finally {
+      setIsUploading3D(false);
+    }
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -346,9 +381,34 @@ export default function EditProjectPage() {
         </TabsContent>
 
         <TabsContent value="visualization">
+            <Card className="mt-6 mb-6">
+                <CardHeader>
+                    <CardTitle>3D Model</CardTitle>
+                    <CardDescription>Upload a 3D model (.glb or .gltf) for the project.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        <div className="grid w-full max-w-sm items-center gap-1.5">
+                            <Label htmlFor="model3d">3D Model File</Label>
+                            <Input id="model3d" type="file" accept=".glb,.gltf" onChange={handle3DUpload} disabled={isUploading3D || isSubmitting} />
+                        </div>
+                        {formData.model3DUrl && (
+                            <div className="flex items-center gap-2 text-sm text-green-600">
+                                <span>✓ Model uploaded: {formData.model3DUrl.split('/').pop()}</span>
+                            </div>
+                        )}
+                        {isUploading3D && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+
             <Card className="mt-6">
                 <CardHeader>
-                    <CardTitle>Building Visualization</CardTitle>
+                    <CardTitle>Building Visualization (2D)</CardTitle>
                     <CardDescription>
                         Upload a building image and define floor zones. The system can auto-detect floors, which you can then fine-tune.
                     </CardDescription>

@@ -9,18 +9,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
 export default function NewProjectPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading3D, setIsUploading3D] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     slug: "",
     description: "",
     location: "",
     floorsCount: 10,
+    model3DUrl: "",
   });
 
   const [floorsConfig, setFloorsConfig] = useState<{ floorNumber: number; apartmentsCount: number }[]>([]);
@@ -44,6 +46,37 @@ export default function NewProjectPage() {
     setFloorsConfig(prev => prev.map(f => 
       f.floorNumber === floorNumber ? { ...f, apartmentsCount: count } : f
     ));
+  };
+
+  const handle3DUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.glb') && !file.name.toLowerCase().endsWith('.gltf')) {
+      toast({ title: "Error", description: "Please upload a GLB or GLTF file", variant: "destructive" });
+      return;
+    }
+
+    setIsUploading3D(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append("file", file);
+
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formDataUpload,
+      });
+      
+      if (!res.ok) throw new Error("Upload failed");
+      
+      const data = await res.json();
+      setFormData(prev => ({ ...prev, model3DUrl: data.url }));
+      toast({ title: "Success", description: "3D model uploaded successfully" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to upload 3D model", variant: "destructive" });
+    } finally {
+      setIsUploading3D(false);
+    }
   };
 
   async function handleSubmit(e: React.FormEvent) {
@@ -148,6 +181,30 @@ export default function NewProjectPage() {
                 disabled={isSubmitting}
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="model3d">3D Model (Optional)</Label>
+              <Input
+                id="model3d"
+                type="file"
+                accept=".glb,.gltf"
+                onChange={handle3DUpload}
+                disabled={isUploading3D || isSubmitting}
+              />
+              {formData.model3DUrl && (
+                <div className="flex items-center gap-2 text-sm text-green-600">
+                  <span>✓ Model uploaded: {formData.model3DUrl.split('/').pop()}</span>
+                </div>
+              )}
+              {isUploading3D && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Uploading...
+                </div>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Upload a GLB or GLTF file for 3D visualization.
+              </p>
             </div>
 
             <div className="space-y-2">
