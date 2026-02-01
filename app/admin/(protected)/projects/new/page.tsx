@@ -184,17 +184,17 @@ export default function NewProjectPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="model3d">3D Model (Optional)</Label>
+              <Label htmlFor="model3d">3D Model / Visualization</Label>
               <Input
                 id="model3d"
                 type="file"
-                accept=".glb,.gltf"
+                accept=".glb,.gltf,.jpg,.jpeg,.png,.webp"
                 onChange={handle3DUpload}
                 disabled={isUploading3D || isSubmitting}
               />
               {formData.model3DUrl && (
                 <div className="flex items-center gap-2 text-sm text-green-600">
-                  <span>✓ Model uploaded: {formData.model3DUrl.split('/').pop()}</span>
+                  <span>✓ File uploaded: {formData.model3DUrl.split('/').pop()}</span>
                 </div>
               )}
               {isUploading3D && (
@@ -203,7 +203,7 @@ export default function NewProjectPage() {
                 </div>
               )}
               <p className="text-sm text-muted-foreground">
-                Upload a GLB or GLTF file for 3D visualization.
+                Upload a 3D model (.glb, .gltf) or an image (.jpg, .png) for visualization.
               </p>
             </div>
 

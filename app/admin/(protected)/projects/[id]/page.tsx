@@ -130,8 +130,11 @@ export default function EditProjectPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.toLowerCase().endsWith('.glb') && !file.name.toLowerCase().endsWith('.gltf')) {
-      toast({ title: "Error", description: "Please upload a GLB or GLTF file", variant: "destructive" });
+    const allowedExtensions = ['.glb', '.gltf', '.jpg', '.jpeg', '.png', '.webp'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+
+    if (!allowedExtensions.includes(fileExtension)) {
+      toast({ title: "Error", description: "Please upload a GLB, GLTF, or image file (JPG, PNG, WEBP)", variant: "destructive" });
       return;
     }
 
@@ -383,18 +386,18 @@ export default function EditProjectPage() {
         <TabsContent value="visualization">
             <Card className="mt-6 mb-6">
                 <CardHeader>
-                    <CardTitle>3D Model</CardTitle>
-                    <CardDescription>Upload a 3D model (.glb or .gltf) for the project.</CardDescription>
+                    <CardTitle>3D Model / Visualization</CardTitle>
+                    <CardDescription>Upload a 3D model (.glb or .gltf) or visualization image (.jpg, .png).</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
                         <div className="grid w-full max-w-sm items-center gap-1.5">
-                            <Label htmlFor="model3d">3D Model File</Label>
-                            <Input id="model3d" type="file" accept=".glb,.gltf" onChange={handle3DUpload} disabled={isUploading3D || isSubmitting} />
+                            <Label htmlFor="model3d">File Upload</Label>
+                            <Input id="model3d" type="file" accept=".glb,.gltf,.jpg,.jpeg,.png,.webp" onChange={handle3DUpload} disabled={isUploading3D || isSubmitting} />
                         </div>
                         {formData.model3DUrl && (
                             <div className="flex items-center gap-2 text-sm text-green-600">
-                                <span>✓ Model uploaded: {formData.model3DUrl.split('/').pop()}</span>
+                                <span>✓ File uploaded: {formData.model3DUrl.split('/').pop()}</span>
                             </div>
                         )}
                         {isUploading3D && (
